@@ -69,3 +69,14 @@ typedef struct tBufferInfo
 	int16_t** appBuffer;
 
 } BUFFER_INFO;
+
+
+/****************************************************************************
+* adc_to_mv
+*
+* Convert an 16-bit ADC count into millivolts
+****************************************************************************/
+int32_t adc_to_mv(int32_t raw, int32_t rangeIndex, UNIT* unit)
+{
+	return (raw * inputRanges[rangeIndex]) / unit->maxADCValue;
+}

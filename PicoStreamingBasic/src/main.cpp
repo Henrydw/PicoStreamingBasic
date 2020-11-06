@@ -1,6 +1,8 @@
 #include "ps5000aApi.h"
 #include <conio.h>
 #include <windows.h>
+#include "PicoWrapper.h"
+#include <stdio.h>
 
 
 
@@ -15,19 +17,6 @@ uint32_t		g_startIndex;
 int16_t			g_trig = 0;
 uint32_t		g_trigAt = 0;
 int16_t			g_overflow = 0;
-
-
-
-/****************************************************************************
-* adc_to_mv
-*
-* Convert an 16-bit ADC count into millivolts
-****************************************************************************/
-int32_t adc_to_mv(int32_t raw, int32_t rangeIndex, UNIT* unit)
-{
-	return (raw * inputRanges[rangeIndex]) / unit->maxADCValue;
-}
-
 
 /****************************************************************************
 * callbackStreaming
@@ -78,6 +67,7 @@ void PREF4 callBackStreaming(int16_t handle,
 		}
 	}
 }
+
 
 int main(void)
 {
