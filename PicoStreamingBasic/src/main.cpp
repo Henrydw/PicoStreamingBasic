@@ -7,7 +7,6 @@
 
 
 // Global variables
-
 int16_t			g_autoStopped;
 int16_t   	g_ready = FALSE;
 uint64_t 		g_times[PS5000A_MAX_CHANNELS];
@@ -33,11 +32,11 @@ void PREF4 callBackStreaming(int16_t handle,
 	void* pParameter)
 {
 	int32_t channel;
-	BUFFER_INFO* bufferInfo = NULL;
+	BUFFER_INFO * bufferInfo = NULL;
 
 	if (pParameter != NULL)
 	{
-		bufferInfo = (BUFFER_INFO*)pParameter;
+		bufferInfo = (BUFFER_INFO *)pParameter;
 	}
 	else
 	{
@@ -62,8 +61,8 @@ void PREF4 callBackStreaming(int16_t handle,
 	{
 		if (bufferInfo->appBuffer && bufferInfo->devBuffer)
 		{
-			memcpy_s(bufferInfo->appBuffer[startIndex], noOfSamples * sizeof(int16_t),
-				bufferInfo->devBuffer[startIndex], noOfSamples * sizeof(int16_t));
+			memcpy_s(&bufferInfo->appBuffer[startIndex], noOfSamples * sizeof(int16_t),
+				     &bufferInfo->devBuffer[startIndex], noOfSamples * sizeof(int16_t));
 		}
 	}
 }
@@ -73,76 +72,33 @@ int main(void)
 {
 	PICO_STATUS status;
 	UNIT scope;
-	scope.resolution = PS5000A_DR_16BIT;
-	// device batch/serial: GU037/0040
-	int8_t serial[12] = "GU037/0040\0"; // this will need to be inlcuded in a setup wizard if changing harware. Ensures it only opens the relevant picoscope....
+	//device batch/serial: GU037/0040
+	scope.resolution = PS5000A_DR_8BIT;
+	int8_t serial[12] = "GU037/0040\0"; // this will need to be inlcuded in a setup wizard if changing harware. Ensures it only opens the relevant picoscope
 	
-	
-	
+	int sampleCount = 50000; /* make sure overview buffer is large enough */
+
 	status = ps5000aOpenUnit(&scope.handle, serial, scope.resolution);
-	
-	if (status == PICO_OK || status == PICO_USB3_0_DEVICE_NON_USB3_0_PORT)
-	{
-		printf("PicoScope Connected\n");
-	}
-	else if (status == PICO_POWER_SUPPLY_NOT_CONNECTED)
-	{
-		printf("No Power Supply");
-	}
-	else
-	{
-		printf("Error code : %x\n", status);
-	}
+	// Powersupply warnings
+	// < USB 3.0 warnings
 	
 	// Set channels: Enable/Disable, AC/DC, voltage range, off-set
-
 	status = ps5000aSetChannel(scope.handle, PS5000A_CHANNEL_A, 1, PS5000A_DC, PS5000A_5V, 0);
-	if (status == PICO_OK)
-	{
-		printf("Channel A enabled\n");
-	}
-	else
-	{
-		printf("Error code : %x\n", status);
-	}
+	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_B), 0, PS5000A_DC, PS5000A_5V, 0);
+	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_C), 0, PS5000A_DC, PS5000A_5V, 0);
+	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_D), 0, PS5000A_DC, PS5000A_5V, 0);
 
-	for (int i = 1; i < 4; i++)
-	{
-		status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A + i), 0, PS5000A_DC, PS5000A_5V, 0);
-		if (status == PICO_OK)
-		{
-			printf("Channel disabled\n");
-		}
-		else
-		{
-			printf("Error code : %x\n", status);
-		}
-	}
+	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0), 0, 0);
+	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT1), 0, 0);
 
 	// Disable triggers
 	status = ps5000aSetSimpleTrigger(scope.handle , 0, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A), 0, PS5000A_RISING, 0, 0);
-	if (status == PICO_OK)
-	{
-		printf("Trigger disabled\n");
-	}
-	else
-	{
-		printf("Error code : %x\n", status);
-	}
 
-	int sampleCount = 50000; /* make sure overview buffer is large enough */
 
 	// allocate memory and assign buffers
-	int16_t* devBuffer = (int16_t*)calloc(sampleCount, sizeof(int16_t));
-	status = ps5000aSetDataBuffer(scope.handle, (PS5000A_CHANNEL)0, devBuffer, sampleCount, 0, PS5000A_RATIO_MODE_NONE);
-	if (status == PICO_OK)
-	{
-		printf("Buffer assigned\n");
-	}
-	else
-	{
-		printf("Error code : %x\n", status);
-	}
+	int16_t* devBuffer = (int16_t*) calloc(sampleCount, sizeof(int16_t));
+	status = ps5000aSetDataBuffer(scope.handle, PS5000A_CHANNEL_A, devBuffer, sampleCount, 0, PS5000A_RATIO_MODE_NONE);
+
 	int16_t* appBuffer = (int16_t*)calloc(sampleCount, sizeof(int16_t));
 	
 	BUFFER_INFO bufferInfo;
@@ -181,6 +137,7 @@ int main(void)
 		printf("Streaming Started\n");
 	}
 
+	g_autoStopped = FALSE;
 
 	// Open File stream to save data
 	FILE* fp = NULL;
@@ -191,13 +148,9 @@ int main(void)
 	int totalSamples = 0;
 	int triggeredAt;
 
-	while (streaming)
+	while (!_kbhit() && !g_autoStopped)
 	{
-		if (GetAsyncKeyState(VK_RETURN))
-		{
-			streaming = false;
-			continue;
-		}
+
 		// Streaming and Save
 		/* Poll until data is received. Until then, GetStreamingLatestValues wont call the callback */
 		g_ready = FALSE;
@@ -235,6 +188,7 @@ int main(void)
 			}
 		}
 	}
+
 	ps5000aStop(scope.handle);
 	printf("Streaming Finished");
 	fclose(fp);
