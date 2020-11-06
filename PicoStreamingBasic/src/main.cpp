@@ -1,50 +1,8 @@
 #include "ps5000aApi.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include <conio.h>
 #include <windows.h>
 
-uint16_t inputRanges[PS5000A_MAX_RANGES] = {
-												10,
-												20,
-												50,
-												100,
-												200,
-												500,
-												1000,
-												2000,
-												5000,
-												10000,
-												20000,
-												50000 };
 
-typedef struct
-{
-	int16_t handle;
-	//MODEL_TYPE				model;
-	int8_t						modelString[8];
-	int8_t						serial[10];
-	int16_t						complete;
-	int16_t						openStatus;
-	int16_t						openProgress;
-	PS5000A_RANGE			firstRange;
-	PS5000A_RANGE			lastRange;
-	int16_t						channelCount;
-	int16_t						maxADCValue;
-	//SIGGEN_TYPE				sigGen;
-	int16_t						hasHardwareETS;
-	uint16_t					awgBufferSize;
-	//CHANNEL_SETTINGS	channelSettings[PS5000A_MAX_CHANNELS];
-	PS5000A_DEVICE_RESOLUTION	resolution;
-	int16_t						digitalPortCount;
-}UNIT;
-
-typedef struct tBufferInfo
-{
-	UNIT* unit;
-	int16_t** devBuffer;
-	int16_t** appBuffer;
-
-} BUFFER_INFO;
 
 // Global variables
 
