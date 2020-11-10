@@ -65,8 +65,8 @@ typedef struct
 typedef struct tBufferInfo
 {
 	UNIT* unit;
-	int16_t** devBuffer;
-	int16_t** appBuffer;
+	int16_t* devBuffer;
+	int16_t* appBuffer;
 
 } BUFFER_INFO;
 

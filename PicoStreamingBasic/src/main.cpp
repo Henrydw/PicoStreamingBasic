@@ -4,8 +4,6 @@
 #include "PicoWrapper.h"
 #include <stdio.h>
 
-
-
 // Global variables
 int16_t			g_autoStopped;
 int16_t   	g_ready = FALSE;
@@ -94,7 +92,6 @@ int main(void)
 	// Disable triggers
 	status = ps5000aSetSimpleTrigger(scope.handle , 0, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A), 0, PS5000A_RISING, 0, 0);
 
-
 	// allocate memory and assign buffers
 	int16_t* devBuffer = (int16_t*) calloc(sampleCount, sizeof(int16_t));
 	status = ps5000aSetDataBuffer(scope.handle, PS5000A_CHANNEL_A, devBuffer, sampleCount, 0, PS5000A_RATIO_MODE_NONE);
@@ -104,8 +101,8 @@ int main(void)
 	BUFFER_INFO bufferInfo;
 
 	bufferInfo.unit = &scope;
-	bufferInfo.devBuffer = &devBuffer;
-	bufferInfo.appBuffer = &appBuffer;
+	bufferInfo.devBuffer = devBuffer;
+	bufferInfo.appBuffer = appBuffer;
 
 	//start streaming
 	uint32_t downsampleRatio = 1;
@@ -113,7 +110,7 @@ int main(void)
 	uint32_t sampleInterval = 1;
 	PS5000A_RATIO_MODE ratioMode = PS5000A_RATIO_MODE_NONE;
 	uint32_t preTrigger = 0;
-	uint32_t postTrigger = 1000000;
+	uint32_t postTrigger = -1;
 	int16_t autostop = 1;
 
 	status = ps5000aRunStreaming(scope.handle, &sampleInterval, timeUnits, preTrigger, postTrigger, autostop,downsampleRatio, ratioMode, sampleCount);
@@ -170,7 +167,6 @@ int main(void)
 
 			for (int i = g_startIndex; i < (int32_t)(g_startIndex + g_sampleCount); i++)
 			{
-
 				if (fp != NULL)
 				{
 					fprintf(fp,
@@ -184,7 +180,6 @@ int main(void)
 				{
 					printf("Cannot open the file %s for writing.\n", streamFile);
 				}
-
 			}
 		}
 	}
