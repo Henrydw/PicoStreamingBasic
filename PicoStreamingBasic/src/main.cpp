@@ -90,7 +90,7 @@ int main(void)
 	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT1), 0, 0);
 
 
-	//check sample rate
+	//Set timebase
 	uint32_t timebase = 625;// approximately 200kHz
 	int32_t noSamples = 100000;
 	int32_t timeInterval;
