@@ -89,6 +89,18 @@ int main(void)
 	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0), 0, 0);
 	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT1), 0, 0);
 
+
+	//check sample rate
+	uint32_t timebase = 625;// approximately 200kHz
+	int32_t noSamples = 100000;
+	int32_t timeInterval;
+	int32_t maxSamples;
+
+	status = ps5000aGetTimebase(scope.handle, timebase, noSamples, &timeInterval, &maxSamples, 0);
+
+	printf("Time interval:  %d, Max samples: %d", timeInterval, maxSamples);
+
+
 	// Disable triggers
 	status = ps5000aSetSimpleTrigger(scope.handle , 0, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A), 0, PS5000A_RISING, 0, 0);
 
@@ -153,6 +165,8 @@ int main(void)
 		g_ready = FALSE;
 
 		status = ps5000aGetStreamingLatestValues(scope.handle, callBackStreaming, &bufferInfo);
+
+		printf("Pico Stream Lastest status: %d",status);
 
 		if (g_ready && g_sampleCount > 0) /* Can be ready and have no data, if autoStop has fired */
 		{
