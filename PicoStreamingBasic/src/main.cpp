@@ -122,8 +122,8 @@ int main(void)
 	uint32_t sampleInterval = 1;
 	PS5000A_RATIO_MODE ratioMode = PS5000A_RATIO_MODE_NONE;
 	uint32_t preTrigger = 0;
-	uint32_t postTrigger = -1;
-	int16_t autostop = 1;
+	uint32_t postTrigger = 1000;
+	int16_t autostop = 0;
 
 	status = ps5000aRunStreaming(scope.handle, &sampleInterval, timeUnits, preTrigger, postTrigger, autostop,downsampleRatio, ratioMode, sampleCount);
 
