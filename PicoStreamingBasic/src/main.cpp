@@ -3,6 +3,7 @@
 #include <windows.h>
 #include "PicoWrapper.h"
 #include <stdio.h>
+#include "date.h"
 
 // Global variables
 int16_t			g_autoStopped;
@@ -71,7 +72,7 @@ int main(void)
 	PICO_STATUS status;
 	UNIT scope;
 	//device batch/serial: GU037/0040
-	scope.resolution = PS5000A_DR_8BIT;
+	scope.resolution = PS5000A_DR_16BIT;
 	int8_t serial[12] = "GU037/0040\0"; // this will need to be inlcuded in a setup wizard if changing harware. Ensures it only opens the relevant picoscope
 	
 	int sampleCount = 50000; /* make sure overview buffer is large enough */
