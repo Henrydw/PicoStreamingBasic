@@ -183,10 +183,11 @@ int main(void)
 			{
 				if (fp != NULL)
 				{
+					// do this for all enabled channels (reading, + voltage in mV
 					fprintf(fp,
-						"Ch A  %5d",
-						appBuffer[i]);// ,
-						//adc_to_mv(appBuffer[i], PS5000A_5V, &scope));
+						"A,  %5d, %+5d",
+						appBuffer[i],
+						adc_to_mv(appBuffer[i], PS5000A_5V, &scope));
 
 					fprintf(fp, "\n");
 				}
