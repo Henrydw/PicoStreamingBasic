@@ -3,8 +3,9 @@
 #include <windows.h>
 #include "PicoWrapper.h"
 #include <stdio.h>
-#include "date.h"
-
+//For Timestamp
+#include <iostream>
+#include <ctime>
 // Global variables
 int16_t			g_autoStopped;
 int16_t   	g_ready = FALSE;
@@ -148,6 +149,18 @@ int main(void)
 	}
 
 	g_autoStopped = FALSE;
+
+	time_t rawtime;
+	struct tm timeinfo;
+	char buffer[80];
+
+	time(&rawtime);
+	localtime_s(&timeinfo ,&rawtime);
+
+	strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S", &timeinfo);
+	std::string str(buffer);
+
+	std::cout << str;
 
 	// Open File stream to save data
 	FILE* fp = NULL;
