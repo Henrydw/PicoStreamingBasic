@@ -56,6 +56,12 @@ typedef struct
 
 typedef struct
 {
+	int16_t enabled;
+	int16_t logicLevel;
+}DIGITAL_PORT_SETTINGS;
+
+typedef struct
+{
 	int16_t handle;
 	//MODEL_TYPE				model;
 	int8_t						modelString[8];
@@ -65,15 +71,16 @@ typedef struct
 	int16_t						openProgress;
 	PS5000A_RANGE				firstRange;
 	PS5000A_RANGE				lastRange;
-	int16_t						channelCount;
+	PS5000A_DEVICE_RESOLUTION	resolution;
 	int16_t						maxADCValue;
 	//SIGGEN_TYPE				sigGen;
 	int16_t						hasHardwareETS;
 	uint16_t					awgBufferSize;
 	uint16_t					streamBufferSize;
+	int16_t						channelCount;
 	CHANNEL_SETTINGS			channelSettings[PS5000A_MAX_CHANNELS];
-	PS5000A_DEVICE_RESOLUTION	resolution;
 	int16_t						digitalPortCount;
+	DIGITAL_PORT_SETTINGS		digitalPortSettings[2];
 }UNIT;
 
 typedef struct tBufferInfo
