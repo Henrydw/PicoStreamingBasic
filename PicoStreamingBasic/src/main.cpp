@@ -70,6 +70,18 @@ void PREF4 callBackStreaming(int16_t handle,
 				}
 			}
 		}
+
+		for (int port = 0; port < bufferInfo->unit->digitalPortCount; port++)
+		{
+			if (bufferInfo->unit->digitalPortSettings[port].enabled)
+			{
+				if (bufferInfo->appMSOBuffer && bufferInfo->devMSOBuffer)
+				{
+					memcpy_s(&bufferInfo->appMSOBuffer[port][startIndex], noOfSamples * sizeof(int16_t),
+						&bufferInfo->devMSOBuffer[port][startIndex], noOfSamples * sizeof(int16_t));
+				}
+			}
+		}
 	}
 }
 
@@ -119,6 +131,22 @@ int main(void)
 	}
 
 
+	scope.digitalPortCount = 1;
+	
+	for (int i = 0; i < MAX_MSO_CHANNELS; i++)
+	{
+		if (i <= scope.digitalPortCount - 1 )
+		{
+			scope.digitalPortSettings[i].enabled = TRUE;
+			scope.digitalPortSettings[i].logicLevel = 0;// (1/5)*32767 = 6553 (1V threshold) 
+		}
+		else
+		{
+			scope.digitalPortSettings[i].enabled = FALSE;
+			scope.digitalPortSettings[i].logicLevel = 0;// (1/5)*32767 = 6553 (1V threshold) 
+		}
+	}
+
 	// Writing information UNIT to device
 
 	// Write the Analogue channel Information
@@ -135,9 +163,15 @@ int main(void)
 		}
 	}
 
-	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0), 0, 0);
-	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT1), 0, 0);
 
+	// Write digital channel settings
+	for (int i = 0; i < MAX_MSO_CHANNELS; i++)
+	{
+		status = ps5000aSetDigitalPort(scope.handle,
+			(PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0 + i),
+			scope.digitalPortSettings[i].enabled,
+			scope.digitalPortSettings[i].logicLevel);
+	}
 
 	//Set timebase
 	uint32_t timebase = 315;// approximately 200kHz
@@ -156,12 +190,19 @@ int main(void)
 
 	// ------------------------------------------------- allocate buffers -------------------------------------------------
 
+	// ---------------- Create buffer pointers ----------------
+
 	// buffer pointer pointers
 	BUFFER_INFO bufferInfo;
 
 	// buffer pointer arrays
 	int16_t* devBuffers[PS5000A_MAX_CHANNELS];
 	int16_t* appBuffers[PS5000A_MAX_CHANNELS];
+	
+	int16_t* devMSOBuffers[MAX_MSO_CHANNELS];
+	int16_t* appMSOBuffers[MAX_MSO_CHANNELS];
+
+	// ---------------- allocate analogue buffers ----------------
 
 	for (int i = 0; i < scope.channelCount; i++)
 	{
@@ -176,10 +217,30 @@ int main(void)
 			printf(status ? "StreamDataHandler:ps5000aSetDataBuffers(channel %ld) ------ 0x%08lx \n" : "", i, status);
 		}
 	}
+
+	// ---------------- allocate MSO buffers ----------------
+
+	for (int i = 0; i < scope.digitalPortCount; i++)
+	{
+		devMSOBuffers[i] = (int16_t*)calloc(scope.streamBufferSize, sizeof(int16_t));
+
+		status = ps5000aSetDataBuffer(scope.handle,
+			(PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0 + i),
+			devBuffers[i], scope.streamBufferSize,
+			0,
+			PS5000A_RATIO_MODE_NONE);
+
+		appMSOBuffers[i] = (int16_t*)calloc(scope.streamBufferSize, sizeof(int16_t));
+
+		printf(status ? "StreamDataHandler:ps5000aSetDataBuffers(Digital Ports %ld) ------ 0x%08lx \n" : "", i, status);
+	}
+
 	
 	bufferInfo.unit = &scope;
 	bufferInfo.devBuffer = devBuffers;
 	bufferInfo.appBuffer = appBuffers;
+	bufferInfo.devMSOBuffer = devMSOBuffers;
+	bufferInfo.appMSOBuffer = appMSOBuffers;
 
 
 	//start streaming
@@ -239,7 +300,7 @@ int main(void)
 
 	// Write the File Meta information
 	fprintf(fp,
-		"Timestamp,  %s, SampleInterval, %d, VoltageRange, 5, BitDepth, 16\n",
+		"Timestamp,  %s, SampleInterval, %d, VoltageRange, 5, BitDepth, 14\n",
 		buffer,
 		timeInterval,
 		scope.resolution);
@@ -256,9 +317,12 @@ int main(void)
 
 		}
 	}
+	fprintf(fp,"D0");
 
 	fprintf(fp, "\n");
 
+
+		uint16_t MSO_stop = 0;
 
 	while (!_kbhit() && !g_autoStopped)
 	{
@@ -293,6 +357,17 @@ int main(void)
 								"%5d, %+5d,",
 								appBuffers[j][i],
 								adc_to_mv(appBuffers[j][i], scope.channelSettings[j].range,0x7FFF));
+						}
+					}
+
+					for (int j = 0; j < scope.digitalPortCount; j++)
+					{
+						if (scope.digitalPortSettings[j].enabled)
+						{
+							// do this for all enabled channels (reading, + voltage in mV
+							fprintf(fp,
+								"%5d",
+								appMSOBuffers[j]);
 						}
 					}
 

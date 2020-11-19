@@ -31,6 +31,8 @@
 
 #define MAX_PICO_DEVICES 64
 
+#define MAX_MSO_CHANNELS 2
+
 
 uint16_t inputRanges[PS5000A_MAX_RANGES] = {
 												10,
@@ -80,7 +82,7 @@ typedef struct
 	int16_t						channelCount;
 	CHANNEL_SETTINGS			channelSettings[PS5000A_MAX_CHANNELS];
 	int16_t						digitalPortCount;
-	DIGITAL_PORT_SETTINGS		digitalPortSettings[2];
+	DIGITAL_PORT_SETTINGS		digitalPortSettings[MAX_MSO_CHANNELS];
 }UNIT;
 
 typedef struct tBufferInfo
@@ -88,6 +90,9 @@ typedef struct tBufferInfo
 	UNIT* unit;
 	int16_t** devBuffer;
 	int16_t** appBuffer;
+	int16_t** devMSOBuffer;
+	int16_t** appMSOBuffer;
+
 
 } BUFFER_INFO;
 
