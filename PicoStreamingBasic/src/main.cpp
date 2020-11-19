@@ -32,11 +32,11 @@ void PREF4 callBackStreaming(int16_t handle,
 	void* pParameter)
 {
 	int32_t channel;
-	BUFFER_INFO * bufferInfo = NULL;
+	BUFFER_INFO* bufferInfo = NULL;
 
 	if (pParameter != NULL)
 	{
-		bufferInfo = (BUFFER_INFO *)pParameter;
+		bufferInfo = (BUFFER_INFO*)pParameter;
 	}
 	else
 	{
@@ -59,64 +59,128 @@ void PREF4 callBackStreaming(int16_t handle,
 
 	if (bufferInfo != NULL && noOfSamples)
 	{
-		if (bufferInfo->appBuffer && bufferInfo->devBuffer)
+		for (channel = 0; channel < bufferInfo->unit->channelCount; channel++)
 		{
-			memcpy_s(&bufferInfo->appBuffer[startIndex], noOfSamples * sizeof(int16_t),
-				     &bufferInfo->devBuffer[startIndex], noOfSamples * sizeof(int16_t));
+			if (bufferInfo->unit->channelSettings[channel].enabled)
+			{
+				if (bufferInfo->appBuffer && bufferInfo->devBuffer)
+				{
+					memcpy_s(&bufferInfo->appBuffer[channel][startIndex], noOfSamples * sizeof(int16_t),
+						&bufferInfo->devBuffer[channel][startIndex], noOfSamples * sizeof(int16_t));
+				}
+			}
 		}
 	}
 }
 
-
 int main(void)
 {
-	PICO_STATUS status;
-	UNIT scope;
-	//device batch/serial: GU037/0040
-	scope.resolution = PS5000A_DR_16BIT;
+
+	int8_t devChars[] =
+		"1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#";
+
 	int8_t serial[12] = "GU037/0040\0"; // this will need to be inlcuded in a setup wizard if changing harware. Ensures it only opens the relevant picoscope
 	
-	int sampleCount = 50000; /* make sure overview buffer is large enough */
+	PICO_STATUS status;
+	
+	UNIT scope;
+
+	//device batch/serial: GU037/0040
+	scope.resolution = PS5000A_DR_14BIT;
+
+	scope.streamBufferSize = 50000; /* make sure overview buffer is large enough */
+
 
 	status = ps5000aOpenUnit(&scope.handle, serial, scope.resolution);
 	// Powersupply warnings
 	// < USB 3.0 warnings
 	
-	// Set channels: Enable/Disable, AC/DC, voltage range, off-set
-	status = ps5000aSetChannel(scope.handle, PS5000A_CHANNEL_A, 1, PS5000A_DC, PS5000A_5V, 0);
-	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_B), 0, PS5000A_DC, PS5000A_5V, 0);
-	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_C), 0, PS5000A_DC, PS5000A_5V, 0);
-	status = ps5000aSetChannel(scope.handle, (PS5000A_CHANNEL)(PS5000A_CHANNEL_D), 0, PS5000A_DC, PS5000A_5V, 0);
+	status = ps5000aCurrentPowerSource(scope.handle);
+
+	// Filling UNIT Data structure
+
+	scope.channelCount = 4;
+
+	for (int i = 0; i < scope.channelCount; i++)
+	{
+		// Do not enable channels C and D if power supply not connected for PicoScope 544XA/B devices
+		if (scope.channelCount == QUAD_SCOPE && status == PICO_POWER_SUPPLY_NOT_CONNECTED && i >= DUAL_SCOPE)
+		{
+			scope.channelSettings[i].enabled = FALSE;
+		}
+		else
+		{
+			scope.channelSettings[i].enabled = TRUE;
+		}
+
+		scope.channelSettings[i].coupling = PS5000A_DC;
+		scope.channelSettings[i].range = PS5000A_5V;
+		scope.channelSettings[i].analogueOffset = 0.0f;
+	}
+
+
+	// Writing information UNIT to device
+
+	// Write the Analogue channel Information
+	for (int i = 0; i < scope.channelCount; i++)
+	{
+		if (scope.channelSettings[i].enabled)
+		{
+			status = ps5000aSetChannel(scope.handle,
+				(PS5000A_CHANNEL)i,
+				scope.channelSettings[i].enabled,
+				scope.channelSettings[i].coupling, 
+				scope.channelSettings[i].range,
+				scope.channelSettings[i].analogueOffset);
+		}
+	}
 
 	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0), 0, 0);
 	status = ps5000aSetDigitalPort(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT1), 0, 0);
 
 
 	//Set timebase
-	uint32_t timebase = 625;// approximately 200kHz
+	uint32_t timebase = 315;// approximately 200kHz
 	int32_t noSamples = 100000;
 	int32_t timeInterval;
 	int32_t maxSamples;
 
 	status = ps5000aGetTimebase(scope.handle, timebase, noSamples, &timeInterval, &maxSamples, 0);
 
-	printf("Time interval:  %d, Max samples: %d", timeInterval, maxSamples);
+	printf("Time interval:  %d, Max samples: %d\n", timeInterval, maxSamples);
 
 
 	// Disable triggers
 	status = ps5000aSetSimpleTrigger(scope.handle , 0, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A), 0, PS5000A_RISING, 0, 0);
 
-	// allocate memory and assign buffers
-	int16_t* devBuffer = (int16_t*) calloc(sampleCount, sizeof(int16_t));
-	status = ps5000aSetDataBuffer(scope.handle, PS5000A_CHANNEL_A, devBuffer, sampleCount, 0, PS5000A_RATIO_MODE_NONE);
 
-	int16_t* appBuffer = (int16_t*)calloc(sampleCount, sizeof(int16_t));
-	
+	// ------------------------------------------------- allocate buffers -------------------------------------------------
+
+	// buffer pointer pointers
 	BUFFER_INFO bufferInfo;
 
+	// buffer pointer arrays
+	int16_t* devBuffers[PS5000A_MAX_CHANNELS];
+	int16_t* appBuffers[PS5000A_MAX_CHANNELS];
+
+	for (int i = 0; i < scope.channelCount; i++)
+	{
+		if (scope.channelSettings[i].enabled)
+		{
+			devBuffers[i] = (int16_t*)calloc(scope.streamBufferSize, sizeof(int16_t));
+
+			status = ps5000aSetDataBuffer(scope.handle, (PS5000A_CHANNEL)i, devBuffers[i], scope.streamBufferSize, 0, PS5000A_RATIO_MODE_NONE);
+
+			appBuffers[i] = (int16_t*)calloc(scope.streamBufferSize, sizeof(int16_t));
+
+			printf(status ? "StreamDataHandler:ps5000aSetDataBuffers(channel %ld) ------ 0x%08lx \n" : "", i, status);
+		}
+	}
+	
 	bufferInfo.unit = &scope;
-	bufferInfo.devBuffer = devBuffer;
-	bufferInfo.appBuffer = appBuffer;
+	bufferInfo.devBuffer = devBuffers;
+	bufferInfo.appBuffer = appBuffers;
+
 
 	//start streaming
 	uint32_t downsampleRatio = 1;
@@ -127,7 +191,7 @@ int main(void)
 	uint32_t postTrigger = 1000;
 	int16_t autostop = 0;
 
-	status = ps5000aRunStreaming(scope.handle, &sampleInterval, timeUnits, preTrigger, postTrigger, autostop,downsampleRatio, ratioMode, sampleCount);
+	status = ps5000aRunStreaming(scope.handle, &sampleInterval, timeUnits, preTrigger, postTrigger, autostop,downsampleRatio, ratioMode, scope.streamBufferSize);
 
 	if (status != PICO_OK)
 	{
@@ -150,6 +214,8 @@ int main(void)
 
 	g_autoStopped = FALSE;
 
+	// Get timestamp of steam start
+
 	time_t rawtime;
 	struct tm timeinfo;
 	char buffer[80];
@@ -158,18 +224,41 @@ int main(void)
 	localtime_s(&timeinfo ,&rawtime);
 
 	strftime(buffer, sizeof(buffer), "%d-%m-%Y %H:%M:%S", &timeinfo);
-	std::string str(buffer);
+	std::string startTime(buffer);
 
-	std::cout << str;
+	std::cout << startTime << std::endl;
 
 	// Open File stream to save data
 	FILE* fp = NULL;
-	char streamFile[20] = "stream.txt";
+	char streamFile[40] = "Layer_1.csv";
 	fopen_s(&fp, streamFile, "w");
 
 	bool streaming = true;
 	int totalSamples = 0;
 	int triggeredAt;
+
+	// Write the File Meta information
+	fprintf(fp,
+		"Timestamp,  %s, SampleInterval, %d, VoltageRange, 5, BitDepth, 16\n",
+		buffer,
+		timeInterval,
+		scope.resolution);
+
+	// Write the Channel headings
+	for (int j = 0; j < scope.channelCount; j++)
+	{
+		if (scope.channelSettings[j].enabled)
+		{
+			fprintf(fp,
+				"%c_raw, %c_voltage,",
+				devChars[10 + j],
+				devChars[10 + j]);
+
+		}
+	}
+
+	fprintf(fp, "\n");
+
 
 	while (!_kbhit() && !g_autoStopped)
 	{
@@ -180,8 +269,6 @@ int main(void)
 
 		status = ps5000aGetStreamingLatestValues(scope.handle, callBackStreaming, &bufferInfo);
 
-		printf("Pico Stream Lastest status: %d",status);
-
 		if (g_ready && g_sampleCount > 0) /* Can be ready and have no data, if autoStop has fired */
 		{
 			if (g_trig)
@@ -191,17 +278,23 @@ int main(void)
 			}
 
 			totalSamples += g_sampleCount;
-			printf("\nCollected %3li samples, index = %5lu, Total: %6d samples ", g_sampleCount, g_startIndex, totalSamples);
+			printf("Collected %3li samples, index = %5lu, Total: %6d samples \n", g_sampleCount, g_startIndex, totalSamples);
 
 			for (int i = g_startIndex; i < (int32_t)(g_startIndex + g_sampleCount); i++)
 			{
 				if (fp != NULL)
 				{
-					// do this for all enabled channels (reading, + voltage in mV
-					fprintf(fp,
-						"A,  %5d, %+5d",
-						appBuffer[i],
-						adc_to_mv(appBuffer[i], PS5000A_5V, &scope));
+					for (int j = 0; j < scope.channelCount; j++)
+					{
+						if (scope.channelSettings[j].enabled)
+						{
+							// do this for all enabled channels (reading, + voltage in mV
+							fprintf(fp,
+								"%5d, %+5d,",
+								appBuffers[j][i],
+								adc_to_mv(appBuffers[j][i], scope.channelSettings[j].range,0x7FFF));
+						}
+					}
 
 					fprintf(fp, "\n");
 				}
@@ -218,8 +311,14 @@ int main(void)
 	fclose(fp);
 	
 	// Clean Up
-	free(devBuffer);
-	free(appBuffer);
+	for (int i = 0; i < scope.channelCount; i++)
+	{
+		if (scope.channelSettings[i].enabled)
+		{
+			free(devBuffers[i]);
+			free(appBuffers[i]);
+		}
+	}
 	ps5000aCloseUnit(scope.handle);
 	
 

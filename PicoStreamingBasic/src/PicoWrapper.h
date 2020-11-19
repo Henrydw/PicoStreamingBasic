@@ -26,6 +26,11 @@
  ******************************************************************************/
 #pragma once
 
+#define QUAD_SCOPE		4
+#define DUAL_SCOPE		2
+
+#define MAX_PICO_DEVICES 64
+
 
 uint16_t inputRanges[PS5000A_MAX_RANGES] = {
 												10,
@@ -43,6 +48,14 @@ uint16_t inputRanges[PS5000A_MAX_RANGES] = {
 
 typedef struct
 {
+	PS5000A_COUPLING coupling;
+	PS5000A_RANGE range;
+	int16_t enabled;
+	float analogueOffset;
+}CHANNEL_SETTINGS;
+
+typedef struct
+{
 	int16_t handle;
 	//MODEL_TYPE				model;
 	int8_t						modelString[8];
@@ -50,14 +63,15 @@ typedef struct
 	int16_t						complete;
 	int16_t						openStatus;
 	int16_t						openProgress;
-	PS5000A_RANGE			firstRange;
-	PS5000A_RANGE			lastRange;
+	PS5000A_RANGE				firstRange;
+	PS5000A_RANGE				lastRange;
 	int16_t						channelCount;
 	int16_t						maxADCValue;
 	//SIGGEN_TYPE				sigGen;
 	int16_t						hasHardwareETS;
 	uint16_t					awgBufferSize;
-	//CHANNEL_SETTINGS	channelSettings[PS5000A_MAX_CHANNELS];
+	uint16_t					streamBufferSize;
+	CHANNEL_SETTINGS			channelSettings[PS5000A_MAX_CHANNELS];
 	PS5000A_DEVICE_RESOLUTION	resolution;
 	int16_t						digitalPortCount;
 }UNIT;
@@ -65,8 +79,8 @@ typedef struct
 typedef struct tBufferInfo
 {
 	UNIT* unit;
-	int16_t* devBuffer;
-	int16_t* appBuffer;
+	int16_t** devBuffer;
+	int16_t** appBuffer;
 
 } BUFFER_INFO;
 
@@ -76,7 +90,9 @@ typedef struct tBufferInfo
 *
 * Convert an 16-bit ADC count into millivolts
 ****************************************************************************/
-int32_t adc_to_mv(int32_t raw, int32_t rangeIndex, UNIT* unit)
+int32_t adc_to_mv(int32_t raw, uint32_t rangeIndex, int16_t maxADCValue)
 {
-	return (raw * inputRanges[rangeIndex]) / unit->maxADCValue;
+	return (raw * inputRanges[rangeIndex]) / maxADCValue;
 }
+
+
