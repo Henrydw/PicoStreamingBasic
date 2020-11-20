@@ -100,7 +100,7 @@ int main(void)
 	//device batch/serial: GU037/0040
 	scope.resolution = PS5000A_DR_14BIT;
 
-	scope.streamBufferSize = 50000; /* make sure overview buffer is large enough */
+	scope.streamBufferSize = 250000; /* make sure overview buffer is large enough */
 
 
 	status = ps5000aOpenUnit(&scope.handle, serial, scope.resolution);
@@ -173,7 +173,7 @@ int main(void)
 
 	//Set timebase
 	uint32_t timebase = 315;// approximately 200kHz
-	int32_t noSamples = 1000000000;
+	int32_t noSamples = scope.streamBufferSize;
 	int32_t timeInterval;
 	int32_t maxSamples;
 
@@ -245,14 +245,16 @@ int main(void)
 
 	// ------------------------------------------------- start streaming -------------------------------------------------
 	uint32_t downsampleRatio = 1;
-	PS5000A_TIME_UNITS timeUnits = PS5000A_US;
-	uint32_t sampleInterval = 1;
+	PS5000A_TIME_UNITS timeUnits = PS5000A_NS;
+	uint32_t sampleInterval = 5000;
 	PS5000A_RATIO_MODE ratioMode = PS5000A_RATIO_MODE_NONE;
 	uint32_t preTrigger = 0;
 	uint32_t postTrigger = 1000;
 	int16_t autostop = 0;
 
 	status = ps5000aRunStreaming(scope.handle, &sampleInterval, timeUnits, preTrigger, postTrigger, autostop,downsampleRatio, ratioMode, scope.streamBufferSize);
+
+	printf("\n\nSample interval:  %d\n\n", sampleInterval);
 
 	if (status != PICO_OK)
 	{
@@ -322,7 +324,7 @@ int main(void)
 	fprintf(fp, "\n");
 
 
-	uint16_t MSO_stop = 0;
+	uint16_t digiStop = 0;
 
 	int16_t bit;
 
@@ -332,7 +334,7 @@ int main(void)
 	// ---------------- Main Streaming App loop  ----------------
 
 
-	while (!_kbhit() && !g_autoStopped)
+	while (!_kbhit() && !g_autoStopped && !digiStop)
 	{
 
 		// Streaming and Save
@@ -368,24 +370,20 @@ int main(void)
 						}
 					}
 
-					fprintf(fp, "%d, ", appMSOBuffers[0][i]);
-					fprintf(fp, "%d, ", appMSOBuffers[1][i]);
-
-					/*
 					digiValue = 0x00ff & appMSOBuffers[1][i];	// Mask Port 1 values to get lower 8 bits
 					digiValue <<= 8;												// Shift by 8 bits to place in upper 8 bits of 16-bit word
 					digiValue |= appMSOBuffers[0][i];					// Mask Port 0 values to get lower 8 bits and apply bitwise inclusive OR to combine with Port 1 values
 
-					// Output data in binary form
-					for (bit = 0; bit < 16; bit++)
-					{
-						// Shift value (32768 - binary 1000 0000 0000 0000), AND with value to get 1 or 0 for channel
-						// Order will be D15 to D8, then D7 to D0
+					// get D0 from the assembled MSO ports
+					bit = (0x8000 >> 15) & digiValue ? 1 : 0;
 
-						bitValue = (0x8000 >> bit) & digiValue ? 1 : 0;
-						fprintf(fp, "%d, ", bitValue);
+					//fprintf(fp, "%d, ",bit);
+
+					if (bit)
+					{
+						digiStop = TRUE;
 					}
-					*/
+
 					fprintf(fp, "\n");
 				}
 				else
