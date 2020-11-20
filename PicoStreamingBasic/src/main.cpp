@@ -104,9 +104,8 @@ int main(void)
 
 
 	status = ps5000aOpenUnit(&scope.handle, serial, scope.resolution);
-	// Powersupply warnings
-	// < USB 3.0 warnings
-	
+	status = ps5000aMaximumValue(scope.handle, &scope.maxADCValue);
+
 	status = ps5000aCurrentPowerSource(scope.handle);
 
 	// Filling UNIT Data structure
@@ -130,20 +129,19 @@ int main(void)
 		scope.channelSettings[i].analogueOffset = 0.0f;
 	}
 
-
-	scope.digitalPortCount = 1;
+	scope.digitalPortCount = 2;
 	
 	for (int i = 0; i < MAX_MSO_CHANNELS; i++)
 	{
 		if (i <= scope.digitalPortCount - 1 )
 		{
 			scope.digitalPortSettings[i].enabled = TRUE;
-			scope.digitalPortSettings[i].logicLevel = 0;// (1/5)*32767 = 6553 (1V threshold) 
+			scope.digitalPortSettings[i].logicLevel = (int16_t)((1.5 / 5) * scope.maxADCValue);// (1/5)*32767 = 6553 (1V threshold) 
 		}
 		else
 		{
 			scope.digitalPortSettings[i].enabled = FALSE;
-			scope.digitalPortSettings[i].logicLevel = 0;// (1/5)*32767 = 6553 (1V threshold) 
+			scope.digitalPortSettings[i].logicLevel = (int16_t)((1.5 / 5) * scope.maxADCValue);// (1/5)*32767 = 6553 (1V threshold) 
 		}
 	}
 
@@ -175,7 +173,7 @@ int main(void)
 
 	//Set timebase
 	uint32_t timebase = 315;// approximately 200kHz
-	int32_t noSamples = 100000;
+	int32_t noSamples = 1000000000;
 	int32_t timeInterval;
 	int32_t maxSamples;
 
@@ -186,6 +184,7 @@ int main(void)
 
 	// Disable triggers
 	status = ps5000aSetSimpleTrigger(scope.handle , 0, (PS5000A_CHANNEL)(PS5000A_CHANNEL_A), 0, PS5000A_RISING, 0, 0);
+
 
 
 	// ------------------------------------------------- allocate buffers -------------------------------------------------
@@ -226,7 +225,8 @@ int main(void)
 
 		status = ps5000aSetDataBuffer(scope.handle,
 			(PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0 + i),
-			devBuffers[i], scope.streamBufferSize,
+			devMSOBuffers[i],
+			scope.streamBufferSize,
 			0,
 			PS5000A_RATIO_MODE_NONE);
 
@@ -243,7 +243,7 @@ int main(void)
 	bufferInfo.appMSOBuffer = appMSOBuffers;
 
 
-	//start streaming
+	// ------------------------------------------------- start streaming -------------------------------------------------
 	uint32_t downsampleRatio = 1;
 	PS5000A_TIME_UNITS timeUnits = PS5000A_US;
 	uint32_t sampleInterval = 1;
@@ -322,7 +322,15 @@ int main(void)
 	fprintf(fp, "\n");
 
 
-		uint16_t MSO_stop = 0;
+	uint16_t MSO_stop = 0;
+
+	int16_t bit;
+
+	uint16_t bitValue;
+	uint16_t digiValue;
+
+	// ---------------- Main Streaming App loop  ----------------
+
 
 	while (!_kbhit() && !g_autoStopped)
 	{
@@ -360,17 +368,24 @@ int main(void)
 						}
 					}
 
-					for (int j = 0; j < scope.digitalPortCount; j++)
-					{
-						if (scope.digitalPortSettings[j].enabled)
-						{
-							// do this for all enabled channels (reading, + voltage in mV
-							fprintf(fp,
-								"%5d",
-								appMSOBuffers[j]);
-						}
-					}
+					fprintf(fp, "%d, ", appMSOBuffers[0][i]);
+					fprintf(fp, "%d, ", appMSOBuffers[1][i]);
 
+					/*
+					digiValue = 0x00ff & appMSOBuffers[1][i];	// Mask Port 1 values to get lower 8 bits
+					digiValue <<= 8;												// Shift by 8 bits to place in upper 8 bits of 16-bit word
+					digiValue |= appMSOBuffers[0][i];					// Mask Port 0 values to get lower 8 bits and apply bitwise inclusive OR to combine with Port 1 values
+
+					// Output data in binary form
+					for (bit = 0; bit < 16; bit++)
+					{
+						// Shift value (32768 - binary 1000 0000 0000 0000), AND with value to get 1 or 0 for channel
+						// Order will be D15 to D8, then D7 to D0
+
+						bitValue = (0x8000 >> bit) & digiValue ? 1 : 0;
+						fprintf(fp, "%d, ", bitValue);
+					}
+					*/
 					fprintf(fp, "\n");
 				}
 				else
@@ -392,8 +407,19 @@ int main(void)
 		{
 			free(devBuffers[i]);
 			free(appBuffers[i]);
+			status =  ps5000aSetDataBuffer(scope.handle, (PS5000A_CHANNEL)i, 0, 0, 0, PS5000A_RATIO_MODE_NONE);
 		}
 	}
+
+	for (int i = 0; i < scope.digitalPortCount; i++)
+	{
+		free(devMSOBuffers[i]);
+		free(appMSOBuffers[i]);
+		status = ps5000aSetDataBuffer(scope.handle, (PS5000A_CHANNEL)(PS5000A_DIGITAL_PORT0 + i), 0, 0, 0, PS5000A_RATIO_MODE_NONE);
+
+		printf(status ? "StreamDataHandler:ps5000aSetDataBuffers(Digital Ports %ld) ------ 0x%08lx \n" : "", i, status);
+	}
+
 	ps5000aCloseUnit(scope.handle);
 	
 
